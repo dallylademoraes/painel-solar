@@ -126,5 +126,64 @@ A bateria é discretizada em **16 níveis** de 0% a 100%.
 Simula **24 passos futuros** (um dia).
 
 ### ✔ Modelo Matemático
-A DP usa a equação:
+A DP usa a equação: V(t, s) = max_a [ R(s, a) + V(t+1, nextState(s, a)) ]
+
+
+Ou seja:
+
+- A função olha para o estado **s** (nível da bateria)
+- Calcula a recompensa de cada ação **a**
+- Soma com o valor futuro do estado resultante
+- Escolhe a ação com maior valor
+
+Essa soma completa é chamada de:
+
+# ⭐ **Q(a) = Recompensa imediata + Valor futuro**
+
+O painel mostra:
+
+- o Q(a) de cada ação (Carregar, Descarregar, Manter, Trocar)
+- a melhor ação destacada pela DP
+
+---
+
+## Recompensas consideradas na DP
+
+- **Descarregar:** lucro imediato, penalização se SOC baixo  
+- **Carregar:** custo imediato, benefício futuro se SOC baixo  
+- **Manter:** ganha valor solar  
+- **Trocar:** custo muito alto  
+
+---
+
+# 📂 HISTÓRICO
+
+Cada ação aparece com:
+
+- horário  
+- nome da ação  
+- impacto financeiro  
+
+Permite acompanhar decisões e lucros ao longo do tempo.
+
+---
+
+# 🏁 Conclusão
+
+O painel combina:
+
+- Simulação realista  
+- Interface clara  
+- Ações manuais intuitivas  
+- Decisões inteligentes via Programação Dinâmica  
+- Representação visual do estado e do valor futuro das ações
+
+É ideal para:
+
+- Trabalhos acadêmicos  
+- Estudos de otimização  
+- Projetos sobre energia  
+- Demonstrações de tomada de decisão inteligente  
+
+
 
