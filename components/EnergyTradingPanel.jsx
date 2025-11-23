@@ -13,6 +13,9 @@ import {
 
 import { runDynamicProgramming } from "./dpEngine";
 
+// ================================
+// ESTILOS PARA ANIMAÇÕES
+// ================================
 if (typeof window !== "undefined") {
   const style = document.createElement("style");
   style.innerHTML = `
@@ -38,6 +41,9 @@ if (typeof window !== "undefined") {
   document.head.appendChild(style);
 }
 
+// ===================================
+// BADGE DAS AÇÕES
+// ===================================
 function ActionBadge({ action }) {
   const map = {
     charge: { label: "Carregar", color: "bg-blue-600 text-white" },
@@ -56,10 +62,17 @@ function ActionBadge({ action }) {
 }
 
 export default function EnergyTradingPanel() {
+
+  // ==============================
+  // ESTADOS PRINCIPAIS
+  // ==============================
   const [battery, setBattery] = useState(72);
   const [batteryHealth, setBatteryHealth] = useState(98.0);
-  const [price, setPrice] = useState(330);
+
   const [solar, setSolar] = useState(3.2);
+  const [isSunny, setIsSunny] = useState(true); // controle manual do sol
+
+  const [price, setPrice] = useState(330);
   const [batteryCost, setBatteryCost] = useState(5000);
   const [profit, setProfit] = useState(0);
   const [history, setHistory] = useState([]);
@@ -69,6 +82,10 @@ export default function EnergyTradingPanel() {
   const [dpStates, setDpStates] = useState(null);
 
   const hour = new Date().getHours();
+
+  // ==============================
+  // TARIFA
+  // ==============================
   const tariff =
     hour < 6
       ? { level: "Madrugada", cost: 0.15 }
@@ -76,19 +93,10 @@ export default function EnergyTradingPanel() {
       ? { level: "Dia", cost: 0.27 }
       : { level: "Pico", cost: 0.55 };
 
-  const solarForecast =
-    hour < 6
-      ? (solar * 0.2).toFixed(1)
-      : hour < 10
-      ? (solar * 1.2).toFixed(1)
-      : hour < 14
-      ? (solar * 1.5).toFixed(1)
-      : hour < 17
-      ? (solar * 1.1).toFixed(1)
-      : (solar * 0.4).toFixed(1);
+  const solarForecast = isSunny ? (solar * 1.4).toFixed(1) : "0.0";
 
   const systemState =
-    battery < 10 && solar < 1
+    battery < 10 && solar <= 0
       ? "Emergência"
       : battery < 25
       ? "Risco"
@@ -103,6 +111,9 @@ export default function EnergyTradingPanel() {
     ]);
   }
 
+  // ==============================
+  // ATUALIZAÇÃO DA DP
+  // ==============================
   useEffect(() => {
     const dp = runDynamicProgramming({
       price,
@@ -115,10 +126,12 @@ export default function EnergyTradingPanel() {
     setBestAction(dp.bestAction);
     setDpTable(dp.table);
     setDpStates(dp.states);
+
   }, [price, solar, battery, batteryHealth, batteryCost]);
 
-  // ===== AÇÕES DO ARTIGO =====
-
+  // ==============================
+  // AÇÕES DO PAINEL
+  // ==============================
   function handleCharge() {
     setBattery((b) => Math.min(100, b + 6.7));
     setProfit((p) => p - price);
@@ -126,7 +139,7 @@ export default function EnergyTradingPanel() {
   }
 
   function handleDischarge() {
-    if (battery <= 0) return; // impedir descarregar zerado
+    if (battery <= 0) return;
 
     setBattery((b) => Math.max(0, b - 6.7));
     setProfit((p) => p + price);
@@ -134,12 +147,16 @@ export default function EnergyTradingPanel() {
   }
 
   function handleIdle() {
-    const gained = solar * 1.2; // ganho real enquanto mantém
-    setBattery((b) => Math.min(100, b + gained));
-    setBatteryHealth((h) => Math.max(50, h - 0.003));
-    setProfit((p) => p + gained * 0.1); // lucro mínimo simbólico
+    if (isSunny) {
+      const gained = solar * 1.2;
+      setBattery((b) => Math.min(100, b + gained));
+      setProfit((p) => p + gained * 0.1);
+      pushHistory("Manter", gained);
+    } else {
+      pushHistory("Manter", 0);
+    }
 
-    pushHistory("Manter", gained);
+    setBatteryHealth((h) => Math.max(50, h - 0.003));
   }
 
   function handleReplace() {
@@ -149,8 +166,41 @@ export default function EnergyTradingPanel() {
     pushHistory("Trocar Bateria", -batteryCost);
   }
 
+  // ==============================
+  // INTERFACE
+  // ==============================
   return (
     <div className="min-h-screen bg-[#0A2342] p-6 text-white grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      {/* CONTROLE DO SOL */}
+      <div className="col-span-2 flex justify-center mb-2">
+        <button
+          onClick={() => {
+            setIsSunny((prev) => !prev);
+            setSolar((prev) => (isSunny ? 0 : 3.2));
+          }}
+          className={`px-4 py-2 rounded cursor-pointer font-semibold shadow-md transition 
+            ${isSunny ? "bg-yellow-500 text-black" : "bg-gray-600 text-white"}
+          `}
+        >
+          {isSunny ? "☀️ Sol Ativo" : "🌙 Sem Sol"}
+        </button>
+      </div>
+
+      {/* Ícone do sol — versão compacta */}
+      <div className="col-span-2 flex justify-center -mt-1 mb-1">
+        {isSunny ? (
+          <Sun
+            size={26}
+            className="text-yellow-300 opacity-90 drop-shadow-md transition-all duration-300"
+          />
+        ) : (
+          <Sun
+            size={26}
+            className="text-gray-400 opacity-40 transition-all duration-300"
+          />
+        )}
+      </div>
 
       {/* PAINEL PRINCIPAL */}
       <Card className="bg-[#0d2e5a] border-none shadow-xl">
@@ -187,9 +237,7 @@ export default function EnergyTradingPanel() {
             <div>
               <p className="text-white text-sm">Solar</p>
               <p className="text-xl text-[#F7B500]">{solar} kW</p>
-              <p className="text-xs text-gray-300">
-                Previsão: {solarForecast} kW
-              </p>
+              <p className="text-xs text-gray-300">Previsão: {solarForecast} kW</p>
             </div>
 
             <div>
@@ -204,34 +252,27 @@ export default function EnergyTradingPanel() {
               className="h-full bg-[#3e92cc] rounded-full transition-all"
               style={{ width: `${battery}%` }}
             />
-            {solar > 0 && <div className="shine" />}
+            {isSunny && <div className="shine" />}
           </div>
 
-          {/* BOTÕES DO ARTIGO */}
+          {/* BOTÕES */}
           <div className="grid grid-cols-4 gap-3 text-sm">
-            <button onClick={handleCharge} className="p-2 bg-blue-600 rounded text-white cursor-pointer">
-              Carregar
-            </button>
-            <button onClick={handleDischarge} className="p-2 bg-orange-500 rounded text-white cursor-pointer">
-              Descarregar
-            </button>
-            <button onClick={handleIdle} className="p-2 bg-gray-500 rounded text-white cursor-pointer">
-              Manter
-            </button>
-            <button onClick={handleReplace} className="p-2 bg-yellow-500 rounded text-white cursor-pointer">
-              Trocar
-            </button>
+            <button onClick={handleCharge} className="p-2 bg-blue-600 rounded text-white cursor-pointer">Carregar</button>
+            <button onClick={handleDischarge} className="p-2 bg-orange-500 rounded text-white cursor-pointer">Descarregar</button>
+            <button onClick={handleIdle} className="p-2 bg-gray-500 rounded text-white cursor-pointer">Manter</button>
+            <button onClick={handleReplace} className="p-2 bg-yellow-500 rounded text-white cursor-pointer">Trocar</button>
           </div>
+
         </CardContent>
       </Card>
 
-      {/* LADO DIREITO */}
+      {/* DIREITA */}
+
       <div className="flex flex-col gap-6">
 
         {/* DP */}
         <Card className="bg-[#0d2e5a] border-none shadow-xl">
           <CardContent className="p-6">
-
             <h2 className="text-xl font-semibold text-[#F7B500] mb-4">
               Programação Dinâmica
             </h2>
@@ -262,13 +303,10 @@ export default function EnergyTradingPanel() {
 
                   const s = battery;
                   const ns =
-                    a === "charge"
-                      ? s + 6.7
-                      : a === "discharge"
-                      ? s - 6.7
-                      : a === "replace"
-                      ? 100
-                      : s;
+                    a === "charge" ? s + 6.7 :
+                    a === "discharge" ? s - 6.7 :
+                    a === "replace" ? 100 :
+                    s;
 
                   const next = Math.min(100, Math.max(0, ns));
 
@@ -285,23 +323,18 @@ export default function EnergyTradingPanel() {
                   const Q = dpTable[0][idx];
 
                   return (
-                    <tr
-                      key={a}
+                    <tr key={a}
                       className={`border-b border-[#1c3e74] ${
                         bestAction === a ? "bg-green-900/40" : ""
                       }`}
                     >
-                      <td className="py-1">
-                        <ActionBadge action={a} />
-                      </td>
-
-                      <td className="py-1 text-right text-[#F7B500] font-semibold">
-                        {Q.toFixed(2)}
-                      </td>
+                      <td className="py-1"><ActionBadge action={a} /></td>
+                      <td className="py-1 text-right text-[#F7B500] font-semibold">{Q.toFixed(2)}</td>
                     </tr>
                   );
                 })}
               </tbody>
+
             </table>
 
           </CardContent>
@@ -313,17 +346,12 @@ export default function EnergyTradingPanel() {
             <h2 className="text-lg text-[#F7B500] mb-3">Histórico</h2>
 
             {history.map((h, i) => (
-              <div
-                key={i}
+              <div key={i}
                 className="flex justify-between text-sm border-b border-[#1c3e74] py-1 text-white"
               >
                 <span>{h.time}</span>
                 <span>{h.action}</span>
-                <span
-                  className={
-                    h.delta >= 0 ? "text-green-400" : "text-red-400"
-                  }
-                >
+                <span className={h.delta >= 0 ? "text-green-400" : "text-red-400"}>
                   {h.delta >= 0 ? "+" : ""}
                   {h.delta.toFixed(2)}
                 </span>
@@ -333,6 +361,7 @@ export default function EnergyTradingPanel() {
         </Card>
 
       </div>
+
     </div>
   );
 }
