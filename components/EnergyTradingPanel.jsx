@@ -3,13 +3,6 @@
 import { useState, useEffect } from "react";
 import { Battery, Sun, Settings } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 
 import { runDynamicProgramming } from "./dpEngine";
 
@@ -62,7 +55,6 @@ function ActionBadge({ action }) {
 }
 
 export default function EnergyTradingPanel() {
-
   // ==============================
   // ESTADOS PRINCIPAIS
   // ==============================
@@ -70,7 +62,7 @@ export default function EnergyTradingPanel() {
   const [batteryHealth, setBatteryHealth] = useState(98.0);
 
   const [solar, setSolar] = useState(3.2);
-  const [isSunny, setIsSunny] = useState(true); // controle manual do sol
+  const [isSunny, setIsSunny] = useState(true);
 
   const [price, setPrice] = useState(330);
   const [batteryCost, setBatteryCost] = useState(5000);
@@ -80,6 +72,7 @@ export default function EnergyTradingPanel() {
   const [bestAction, setBestAction] = useState(null);
   const [dpTable, setDpTable] = useState(null);
   const [dpStates, setDpStates] = useState(null);
+  const [dpQ, setDpQ] = useState(null); 
 
   const hour = new Date().getHours();
 
@@ -126,7 +119,7 @@ export default function EnergyTradingPanel() {
     setBestAction(dp.bestAction);
     setDpTable(dp.table);
     setDpStates(dp.states);
-
+    setDpQ(dp.qValues); 
   }, [price, solar, battery, batteryHealth, batteryCost]);
 
   // ==============================
@@ -187,18 +180,12 @@ export default function EnergyTradingPanel() {
         </button>
       </div>
 
-      {/* Ícone do sol — versão compacta */}
+      {/* Ícone do sol — compacto */}
       <div className="col-span-2 flex justify-center -mt-1 mb-1">
         {isSunny ? (
-          <Sun
-            size={26}
-            className="text-yellow-300 opacity-90 drop-shadow-md transition-all duration-300"
-          />
+          <Sun size={26} className="text-yellow-300 opacity-90 drop-shadow-md" />
         ) : (
-          <Sun
-            size={26}
-            className="text-gray-400 opacity-40 transition-all duration-300"
-          />
+          <Sun size={26} className="text-gray-400 opacity-40" />
         )}
       </div>
 
@@ -267,7 +254,6 @@ export default function EnergyTradingPanel() {
       </Card>
 
       {/* DIREITA */}
-
       <div className="flex flex-col gap-6">
 
         {/* DP */}
@@ -298,43 +284,24 @@ export default function EnergyTradingPanel() {
               </thead>
 
               <tbody>
-                {["charge", "discharge", "idle", "replace"].map((a) => {
-                  if (!dpTable || !dpStates) return null;
+                {dpQ &&
+                  ["charge", "discharge", "idle", "replace"].map((a) => {
+                    const Q = dpQ[a];
 
-                  const s = battery;
-                  const ns =
-                    a === "charge" ? s + 6.7 :
-                    a === "discharge" ? s - 6.7 :
-                    a === "replace" ? 100 :
-                    s;
-
-                  const next = Math.min(100, Math.max(0, ns));
-
-                  let idx = 0;
-                  let md = Infinity;
-                  dpStates.forEach((st, i) => {
-                    const d = Math.abs(st - next);
-                    if (d < md) {
-                      md = d;
-                      idx = i;
-                    }
-                  });
-
-                  const Q = dpTable[0][idx];
-
-                  return (
-                    <tr key={a}
-                      className={`border-b border-[#1c3e74] ${
-                        bestAction === a ? "bg-green-900/40" : ""
-                      }`}
-                    >
-                      <td className="py-1"><ActionBadge action={a} /></td>
-                      <td className="py-1 text-right text-[#F7B500] font-semibold">{Q.toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr key={a}
+                        className={`border-b border-[#1c3e74] ${
+                          bestAction === a ? "bg-green-900/40" : ""
+                        }`}
+                      >
+                        <td className="py-1"><ActionBadge action={a} /></td>
+                        <td className="py-1 text-right text-[#F7B500] font-semibold">
+                          {Q.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
-
             </table>
 
           </CardContent>

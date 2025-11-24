@@ -1,4 +1,4 @@
-// dpEngine.js — versão com bloqueio total de descarga à noite
+// dpEngine.js — versão FINAL com retorno de Q(a) e prioridade ao "Manter" quando tem sol
 
 export function runDynamicProgramming({
   price,
@@ -22,45 +22,56 @@ export function runDynamicProgramming({
   function reward(s, action) {
     let R = 0;
 
-    // ----- BLOQUEIO TOTAL DE DESCARGA À NOITE -----
+    // ======= BLOQUEIOS FORTES =======
+
+    // Bloqueio total de descarga à noite
     if (solar <= 0 && action === "discharge") {
-      return -9999999; // nunca permitir
+      return -9999999;
     }
 
-    // ----- BLOQUEIO DE DESCARGA COM SOC CRÍTICO -----
+    // Bloqueio de descarga com SOC crítico
     if (action === "discharge" && s <= 6.7) {
       return -9999999;
     }
 
-    // ----- DESCARREGAR (de dia) -----
+    // ======= DESCARREGAR =======
     if (action === "discharge") {
       R += price;
 
+      // penalidade por SOC baixo
       if (s < 30) R -= 50;
       if (s < 15) R -= 200;
 
+      // desgaste por baixa saúde
       const gamma = (100 - batteryHealth) * 0.04;
       R -= gamma;
     }
 
-    // ----- CARREGAR -----
+    // ======= CARREGAR =======
     if (action === "charge") {
       R -= price;
-
       if (s < 30) R += 20;
       if (s < 15) R += 40;
-    }
 
-    // ----- MANTER -----
-    if (action === "idle") {
+      // ❗ NOVO: Carregar quando tem sol é ruim → compra energia à toa
       if (solar > 0) {
-        R += solar * 0.6;
-      } else {
-        R -= 5;
+        R -= 200; // punição grande
       }
     }
 
-    // ----- TROCAR -----
+    // ======= MANTER =======
+    if (action === "idle") {
+      if (solar > 0) {
+        R += solar * 0.6;
+
+        // ❗ NOVO: manter quando tem sol é muito bom → energia grátis
+        R += 30;
+      } else {
+        R -= 5; // custo mínimo de manter sem geração
+      }
+    }
+
+    // ======= TROCAR =======
     if (action === "replace") {
       R -= batteryCost;
     }
@@ -68,18 +79,17 @@ export function runDynamicProgramming({
     return R;
   }
 
-  // -------------------------
-  // BACKWARD DP
-  // -------------------------
+  // ================================
+  // BACKWARD DP — 24 passos futuros
+  // ================================
   for (let t = T - 1; t >= 0; t--) {
     for (let si = 0; si < states.length; si++) {
       const s = states[si];
       let best = -Infinity;
 
       for (const a of actions) {
-
-        // bloquear descarregar à noite
         if (solar <= 0 && a === "discharge") continue;
+        if (a === "discharge" && s <= 6.7) continue;
 
         const ns = nextState(s, a);
 
@@ -94,7 +104,6 @@ export function runDynamicProgramming({
         });
 
         const q = reward(s, a) + V[t + 1][closest];
-
         if (q > best) best = q;
       }
 
@@ -102,9 +111,9 @@ export function runDynamicProgramming({
     }
   }
 
-  // -------------------------
-  // MELHOR AÇÃO
-  // -------------------------
+  // ================================
+  // MELHOR AÇÃO NO SOC ATUAL
+  // ================================
   let cur = 0;
   let dmin = Infinity;
   states.forEach((st, i) => {
@@ -115,16 +124,20 @@ export function runDynamicProgramming({
     }
   });
 
+  const qValues = {};
   let bestAction = null;
   let bestValue = -Infinity;
 
   for (const a of actions) {
+    if (solar <= 0 && a === "discharge") {
+      qValues[a] = -9999999;
+      continue;
+    }
 
-    // ❌ bloquear descarregar à noite
-    if (solar <= 0 && a === "discharge") continue;
-
-    // ❌ bloquear descarregar com bateria crítica
-    if (a === "discharge" && battery <= 6.7) continue;
+    if (a === "discharge" && battery <= 6.7) {
+      qValues[a] = -9999999;
+      continue;
+    }
 
     const ns = nextState(battery, a);
 
@@ -139,6 +152,7 @@ export function runDynamicProgramming({
     });
 
     const Q = reward(battery, a) + V[1][closest];
+    qValues[a] = Q;
 
     if (Q > bestValue) {
       bestValue = Q;
@@ -146,5 +160,10 @@ export function runDynamicProgramming({
     }
   }
 
-  return { bestAction, table: V, states };
+  return {
+    bestAction,
+    qValues,
+    table: V,
+    states,
+  };
 }
